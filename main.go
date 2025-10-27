@@ -23,6 +23,7 @@ func splitVideoSegments(videoPath string, segments []audiopack.NoteSegment, outp
 
 	var clipPaths []string
 	for _, seg := range segments {
+		fmt.Printf("🔥 Processing segment: Start=%.3f, End=%.3f, Note=%d\n", seg.Start, seg.End, seg.Note)
 		outFile := filepath.Join(outputDir, fmt.Sprintf("%03d.mp4", seg.Note))
 
 		// Path to the pitch-corrected audio file
@@ -30,6 +31,8 @@ func splitVideoSegments(videoPath string, segments []audiopack.NoteSegment, outp
 
 		// Check if the audio file exists
 		if _, err := os.Stat(audioFile); os.IsNotExist(err) {
+			fmt.Printf("😭 %s", audioFile)
+
 			return nil, fmt.Errorf("audio file not found: %s", audioFile)
 		}
 
@@ -64,6 +67,9 @@ func main() {
 	if len(os.Args) < 3 {
 		log.Fatalf("Usage: go run main.go <video-file> <midi-file>")
 	}
+
+	cleanUpTempDirs()
+
 	videoPath := os.Args[1]
 
 	// Step 1: Extract audio and run aubionotes
@@ -85,12 +91,14 @@ func main() {
 	}
 
 	// Step 1.5 Prepare the audio pitch-corrected
-	audiopack.PrepareAudio(segments, audioPath)
+	filteredSegments := audiopack.FilterAudioSegments(segments, videoPath, 1.3)
+
+	finalSegments := audiopack.PrepareAudio(filteredSegments, audioPath)
 
 	// Step 2: Split video into clips in temp_vids
 	tempVidDir := "temp_vids"
 
-	splitVideoSegments(videoPath, segments, tempVidDir)
+	splitVideoSegments(videoPath, finalSegments, tempVidDir)
 
 	if err != nil {
 		log.Fatalf("Error splitting video: %v", err)
@@ -114,5 +122,21 @@ func main() {
 
 	fmt.Println("Video with audio generated:", outputFile)
 
-	// fmt.Println("All pitch-corrected video clips created in", tempPitchDir)
+}
+
+func cleanUpTempDirs() {
+	fmt.Println("Cleaning up previous run directories...")
+	dirsToRemove := []string{
+		"./audio_files",
+		"./temp_vids",
+		"./temp_pitch_corrected_audio",
+	}
+
+	for _, dir := range dirsToRemove {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("Warning: Failed to remove %s: %v", dir, err)
+		} else {
+			fmt.Printf("✓ Removed %s\n", dir)
+		}
+	}
 }

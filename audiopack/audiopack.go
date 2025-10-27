@@ -76,7 +76,7 @@ func ParseAubioOutput(lines []string) []NoteSegment {
 	return segments
 }
 
-func FilterAudioSegments(segments []NoteSegment, videoPath string, thresholdDB float64) []NoteSegment {
+func FilterAudioSegments(segments []NoteSegment, videoPath string, thresholdPercentage float64) []NoteSegment {
 	// Get the mean volume level of the entire audio
 	meanVolume, err := getMeanVolume(videoPath)
 	if err != nil {
@@ -99,11 +99,11 @@ func FilterAudioSegments(segments []NoteSegment, videoPath string, thresholdDB f
 		}
 
 		// Keep segment if its volume is above (mean - threshold)
-		if segVolume >= (meanVolume - thresholdDB) {
+		if segVolume >= (meanVolume / float64(thresholdPercentage)) {
 			filtered = append(filtered, seg)
 		} else {
-			fmt.Printf("Filtered out segment at %.2f-%.2f (volume: %.2f dB, threshold: %.2f dB)\n",
-				seg.Start, seg.End, segVolume, meanVolume-thresholdDB)
+			fmt.Printf("Filtered out segment at %.2f-%.2f (volume: %.2f dB, mv: %.2f, threshold: %.2f dB)\n",
+				seg.Start, seg.End, segVolume, meanVolume, meanVolume/float64(thresholdPercentage))
 		}
 	}
 
@@ -214,21 +214,13 @@ func PrepareAudio(segments []NoteSegment, audioPath string) []NoteSegment {
 		}
 
 		// Pitch correct the segment
-		correctedFile := filepath.Join(tempPitchDir, fmt.Sprintf("corrected_%d.wav", i))
+		correctedFile := fmt.Sprintf("%s/%03d.wav", audioDir, segment.Note)
 		if err := pitching.PitchCorrectAudio(extractedFile, correctedFile, float64(segment.Note)); err != nil {
 			log.Printf("Warning: Failed to pitch correct segment %d: %v (skipping)", i, err)
 			continue
 		}
 
-		// Store the pitch-corrected segment to audio_files/{segment.Note}.wav
-		// Use zero-padded note number for consistent naming
-		noteFile := fmt.Sprintf("%s/%03d.wav", audioDir, segment.Note)
-		if err := copyFile(correctedFile, noteFile); err != nil {
-			log.Printf("Warning: Failed to copy segment %d to audio_files: %v (skipping)", i, err)
-			continue
-		}
-
-		fmt.Printf("✓ Successfully processed segment %d -> %s\n", i, noteFile)
+		fmt.Printf("✓ Successfully processed segment %d -> %s\n", i, correctedFile)
 
 		// Add or overwrite in map - if note already exists, this replaces it
 		noteSegmentMap[segment.Note] = segment

@@ -30,7 +30,7 @@ func BuildFFmpegCommandWithAudio(events []midiparse.NoteEvent, outputFile string
 		if e.Note < 100 {
 			noteFile = "0" + noteFile
 		}
-		file := fmt.Sprintf("temp_pitch_corrected_vids/%s.mp4", noteFile)
+		file := fmt.Sprintf("temp_vids/%s.mp4", noteFile)
 
 		// Check if file exists, if not try same note in other octaves
 		if _, err := os.Stat(file); os.IsNotExist(err) {
@@ -130,7 +130,7 @@ func findNoteInOtherOctave(note int) string {
 			noteFile = "0" + noteFile
 		}
 		if candidateNote >= 0 && candidateNote <= 127 {
-			file := fmt.Sprintf("temp_pitch_corrected_vids/%s.mp4", noteFile)
+			file := fmt.Sprintf("temp_vids/%s.mp4", noteFile)
 			fmt.Printf("  Checking: %s\n", file)
 			if _, err := os.Stat(file); err == nil {
 				fmt.Printf("  Found: %s\n", file)
