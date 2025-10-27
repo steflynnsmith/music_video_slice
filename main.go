@@ -16,7 +16,6 @@ import (
 func ensureDir(dir string) error {
 	return os.MkdirAll(dir, os.ModePerm)
 }
-
 func splitVideoSegments(videoPath string, segments []audiopack.NoteSegment, outputDir string) ([]string, error) {
 	if err := ensureDir(outputDir); err != nil {
 		return nil, err
@@ -25,20 +24,34 @@ func splitVideoSegments(videoPath string, segments []audiopack.NoteSegment, outp
 	var clipPaths []string
 	for _, seg := range segments {
 		outFile := filepath.Join(outputDir, fmt.Sprintf("%03d.mp4", seg.Note))
+
+		// Path to the pitch-corrected audio file
+		audioFile := fmt.Sprintf("audio_files/%03d.wav", seg.Note)
+
+		// Check if the audio file exists
+		if _, err := os.Stat(audioFile); os.IsNotExist(err) {
+			return nil, fmt.Errorf("audio file not found: %s", audioFile)
+		}
+
 		cmd := exec.Command(
 			"ffmpeg",
 			"-y",
-			"-i", videoPath,
 			"-ss", fmt.Sprintf("%.3f", seg.Start),
 			"-to", fmt.Sprintf("%.3f", seg.End),
+			"-i", videoPath,
+			"-i", audioFile,
+			"-map", "0:v:0", // Video from first input (original video)
+			"-map", "1:a:0", // Audio from second input (pitch-corrected audio)
 			"-c:v", "libx264",
 			"-c:a", "aac",
+			"-shortest", // End when shortest stream ends
 			outFile,
 		)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
-		fmt.Printf("Creating video clip %s (%.3f - %.3f)\n", outFile, seg.Start, seg.End)
+		fmt.Printf("Creating video clip %s (%.3f - %.3f) with audio from %s\n",
+			outFile, seg.Start, seg.End, audioFile)
 		if err := cmd.Run(); err != nil {
 			return nil, fmt.Errorf("ffmpeg split failed: %w", err)
 		}
@@ -71,16 +84,17 @@ func main() {
 		return
 	}
 
+	// Step 1.5 Prepare the audio pitch-corrected
+	audiopack.PrepareAudio(segments, audioPath)
+
 	// Step 2: Split video into clips in temp_vids
 	tempVidDir := "temp_vids"
 
-	clips, err := splitVideoSegments(videoPath, segments, tempVidDir)
+	splitVideoSegments(videoPath, segments, tempVidDir)
 
 	if err != nil {
 		log.Fatalf("Error splitting video: %v", err)
 	}
-
-	audiopack.PitchVideoClips(clips)
 
 	midiFilePath := os.Args[2]
 

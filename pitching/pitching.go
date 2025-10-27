@@ -9,7 +9,7 @@ import (
 )
 
 // pitchCorrectAudio detects the pitch of the input audio and shifts it to the nearest MIDI note
-func PitchCorrectAudio(inputAudio, outputAudio string) error {
+func PitchCorrectAudio(inputAudio, outputAudio string, targetMIDI float64) error {
 	// Step 1: Detect the current pitch using aubiopitch
 	detectedPitch, err := detectPitch(inputAudio)
 	if err != nil {
@@ -27,7 +27,6 @@ func PitchCorrectAudio(inputAudio, outputAudio string) error {
 	fmt.Printf("Detected MIDI note (float): %.2f\n", detectedMIDI)
 
 	// Step 3: Round to nearest MIDI note
-	targetMIDI := math.Round(detectedMIDI)
 	fmt.Printf("Target MIDI note: %.0f\n", targetMIDI)
 
 	// Step 4: Calculate cents difference

@@ -2,14 +2,13 @@ package audiopack
 
 import (
 	"fmt"
+	"hello/pitching"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"hello/pitching"
 )
 
 type NoteSegment struct {
@@ -187,9 +186,12 @@ func getSegmentVolume(videoPath string, start, end float64) (float64, error) {
 	return 0, fmt.Errorf("could not parse mean_volume from ffmpeg output")
 }
 
-func PitchVideoClips(clipPaths []string) {
-	// Step 3: Loop through clips, pitch-correct audio, replace audio
-	tempPitchDir := "temp_pitch_corrected_vids"
+func PrepareAudio(segments []NoteSegment, audioPath string) []NoteSegment {
+	tempPitchDir := "temp_pitch_corrected_audio"
+
+	// Use map to track segments by note number for easy overwriting
+	noteSegmentMap := make(map[int]NoteSegment)
+
 	if err := ensureDir(tempPitchDir); err != nil {
 		log.Fatalf("Error creating pitch-corrected dir: %v", err)
 	}
@@ -200,28 +202,84 @@ func PitchVideoClips(clipPaths []string) {
 		log.Fatalf("Error creating audio directory: %v", err)
 	}
 
-	for _, clip := range clipPaths {
-		clipBase := filepath.Base(clip)
-		audioTmp := filepath.Join(audioDir, clipBase+".wav")
-		audioCorrected := filepath.Join(audioDir, clipBase+".corrected.wav")
-		outClip := filepath.Join(tempPitchDir, clipBase)
+	for i, segment := range segments {
+		fmt.Printf("Processing segment %d/%d (Note %d, %.2f-%.2f sec)...\n",
+			i+1, len(segments), segment.Note, segment.Start, segment.End)
 
-		// Extract audio
-		if err := ExtractAudio(clip, audioTmp); err != nil {
-			// Delete the video clip if audio extraction fails
+		// Extract the segment from the audio file
+		extractedFile := filepath.Join(tempPitchDir, fmt.Sprintf("%d.wav", segment.Note))
+		if err := extractAudioSegment(audioPath, extractedFile, segment.Start, segment.End); err != nil {
+			log.Printf("Warning: Failed to extract segment %d: %v (skipping)", i, err)
 			continue
 		}
 
-		// Pitch correct
-		if err := pitching.PitchCorrectAudio(audioTmp, audioCorrected); err != nil {
+		// Pitch correct the segment
+		correctedFile := filepath.Join(tempPitchDir, fmt.Sprintf("corrected_%d.wav", i))
+		if err := pitching.PitchCorrectAudio(extractedFile, correctedFile, float64(segment.Note)); err != nil {
+			log.Printf("Warning: Failed to pitch correct segment %d: %v (skipping)", i, err)
 			continue
 		}
 
-		// Replace audio in video
-		if err := ReplaceAudioInVideo(clip, audioCorrected, outClip); err != nil {
-			log.Fatalf("Error replacing audio in clip %s: %v", clip, err)
+		// Store the pitch-corrected segment to audio_files/{segment.Note}.wav
+		// Use zero-padded note number for consistent naming
+		noteFile := fmt.Sprintf("%s/%03d.wav", audioDir, segment.Note)
+		if err := copyFile(correctedFile, noteFile); err != nil {
+			log.Printf("Warning: Failed to copy segment %d to audio_files: %v (skipping)", i, err)
+			continue
 		}
+
+		fmt.Printf("✓ Successfully processed segment %d -> %s\n", i, noteFile)
+
+		// Add or overwrite in map - if note already exists, this replaces it
+		noteSegmentMap[segment.Note] = segment
+		// if len(noteSegmentMap) < len(filteredNoteSegments)+1 {
+		// 	fmt.Printf("  Note %d already existed, overwriting with new segment\n", segment.Note)
+		// }
 	}
+
+	// Convert map back to slice
+	filteredNoteSegments := make([]NoteSegment, 0, len(noteSegmentMap))
+	for _, segment := range noteSegmentMap {
+		filteredNoteSegments = append(filteredNoteSegments, segment)
+	}
+
+	fmt.Printf("\nSuccessfully processed %d/%d segments\n", len(filteredNoteSegments), len(segments))
+	return filteredNoteSegments
+}
+
+// extractAudioSegment extracts a time segment from an audio file
+func extractAudioSegment(inputAudio, outputAudio string, start, end float64) error {
+	duration := end - start
+
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-ss", fmt.Sprintf("%.3f", start),
+		"-t", fmt.Sprintf("%.3f", duration),
+		"-i", inputAudio,
+		"-vn",
+		"-acodec", "pcm_s16le",
+		"-ar", "44100",
+		"-ac", "2",
+		outputAudio,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg extract failed: %w, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	cmd := exec.Command("cp", src, dst)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("copy failed: %w, output: %s", err, string(output))
+	}
+	return nil
 }
 
 func ExtractAudio(videoPath, audioPath string) error {

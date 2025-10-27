@@ -21,3 +21,6 @@ Thumbs.db
 audio_files/
 temp_pitch_corrected_vids/
 temp_vids/
+
+final_output_with_audio.mp4
+audio.wav
