@@ -19,7 +19,7 @@ Thumbs.db
 
 # Local directories
 audio_files/
-temp_pitch_corrected_vids/
+temp_pitch_corrected_audio/
 temp_vids/
 
 final_output_with_audio.mp4

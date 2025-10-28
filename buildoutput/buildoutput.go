@@ -43,9 +43,9 @@ func BuildFFmpegCommandWithAudio(events []midiparse.NoteEvent, outputFile string
 
 		inputs = append(inputs, "-i", file)
 
-		// Video: trim to duration, then reset timestamps
-		filterComplex += fmt.Sprintf("[%d:v]trim=duration=%.3f,setpts=PTS-STARTPTS[v%d];",
-			i, e.Duration, i)
+		// Video: trim to duration, reset timestamps to start at 0, scale to output size, format, then use setpts to delay
+		filterComplex += fmt.Sprintf("[%d:v]trim=duration=%.3f,setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setpts=PTS+%.3f/TB,format=yuv420p[v%d];",
+			i, e.Duration, e.Start, i)
 
 		// Audio: trim to duration, delay to match note start, enable only during note duration
 		delayMS := int(e.Start * 1000)
@@ -76,8 +76,8 @@ func BuildFFmpegCommandWithAudio(events []midiparse.NoteEvent, outputFile string
 			outputLabel = fmt.Sprintf("[tmp%d]", i)
 		}
 
-		filterComplex += fmt.Sprintf("%s[v%d]overlay=enable='between(t,%.3f,%.3f)'%s;",
-			currentLabel, i, events[i].Start, events[i].Start+events[i].Duration, outputLabel)
+		filterComplex += fmt.Sprintf("%s[v%d]overlay=shortest=0:eof_action=pass%s;",
+			currentLabel, i, outputLabel)
 		currentLabel = outputLabel
 	}
 

@@ -68,41 +68,41 @@ func main() {
 		log.Fatalf("Usage: go run main.go <video-file> <midi-file>")
 	}
 
-	cleanUpTempDirs()
+	// cleanUpTempDirs()
 
-	videoPath := os.Args[1]
+	// videoPath := os.Args[1]
 
-	// Step 1: Extract audio and run aubionotes
-	audioPath := "audio.wav"
-	if err := audiopack.ExtractAudio(videoPath, audioPath); err != nil {
-		log.Fatalf("Error extracting audio: %v", err)
-	}
+	// // Step 1: Extract audio and run aubionotes
+	// audioPath := "audio.wav"
+	// if err := audiopack.ExtractAudio(videoPath, audioPath); err != nil {
+	// 	log.Fatalf("Error extracting audio: %v", err)
+	// }
 
-	lines, err := audiopack.RunAubioNotes(audioPath)
-	if err != nil {
-		log.Fatalf("Error running aubionotes: %v", err)
-	}
+	// lines, err := audiopack.RunAubioNotes(audioPath)
+	// if err != nil {
+	// 	log.Fatalf("Error running aubionotes: %v", err)
+	// }
 
-	segments := audiopack.ParseAubioOutput(lines)
+	// segments := audiopack.ParseAubioOutput(lines)
 
-	if len(segments) == 0 {
-		log.Printf("No segments >= %.3f detected.", audiopack.MinClipDuration)
-		return
-	}
+	// if len(segments) == 0 {
+	// 	log.Printf("No segments >= %.3f detected.", audiopack.MinClipDuration)
+	// 	return
+	// }
 
-	// Step 1.5 Prepare the audio pitch-corrected
-	filteredSegments := audiopack.FilterAudioSegments(segments, videoPath, 1.3)
+	// // Step 1.5 Prepare the audio pitch-corrected
+	// filteredSegments := audiopack.FilterAudioSegments(segments, videoPath, 1.3)
 
-	finalSegments := audiopack.PrepareAudio(filteredSegments, audioPath)
+	// finalSegments := audiopack.PrepareAudio(filteredSegments, audioPath)
 
-	// Step 2: Split video into clips in temp_vids
-	tempVidDir := "temp_vids"
+	// // Step 2: Split video into clips in temp_vids
+	// tempVidDir := "temp_vids"
 
-	splitVideoSegments(videoPath, finalSegments, tempVidDir)
+	// splitVideoSegments(videoPath, finalSegments, tempVidDir)
 
-	if err != nil {
-		log.Fatalf("Error splitting video: %v", err)
-	}
+	// if err != nil {
+	// 	log.Fatalf("Error splitting video: %v", err)
+	// }
 
 	midiFilePath := os.Args[2]
 
